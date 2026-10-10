@@ -38,6 +38,10 @@ resource "proxmox_virtual_environment_vm" "example" {
   # that may hang if the guest agent is not installed.
   stop_on_destroy = true
 
+  agent {
+      enabled = true
+    }
+
   operating_system {
    type = "win11"
   }

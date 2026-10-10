@@ -9,3 +9,4 @@
 mise exec -- bash
 tofu init
 tofu plan
+tofu apply
