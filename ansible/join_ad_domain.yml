@@ -1,0 +1,44 @@
+---
+- name: prequesites
+  import_playbook: install_ad.yml
+
+- name: Join Active Directory domain
+  hosts: domain_members
+  gather_facts: false
+
+  vars_prompt:
+    - name: domain_admin_password
+      prompt: "Enter the domain admin password"
+      private: true        # Hides the password input on the screen
+
+  tasks:
+    - name: Extract domain controller private ip
+      ansible.builtin.set_fact:
+        domain_controller_private_ip: "{{ hostvars[groups['domain_controllers'][0]]['ansible_host'] }}"
+
+    - name: Update the hostname
+      ansible.windows.win_hostname:
+        name: "{{ inventory_hostname.split('.')[0] }}"
+
+    - name: Join corp.toxiclabs.net domain
+      register: r_domain_membership
+      microsoft.ad.membership:
+        dns_domain_name: corp.toxiclabs.net
+        hostname: "{{ inventory_hostname.split('.')[0] }}"
+        domain_admin_user: "{{ ansible_user }}@corp.toxiclabs.net"
+        domain_admin_password: "{{ domain_admin_password }}"
+        # domain_ou_path: "OU=Demo,DC=ansible,DC=local"
+        state: domain
+
+    - name: Reboot windows machine
+      when: r_domain_membership.reboot_required
+      ansible.windows.win_reboot:
+#
+#     - name: Add domain tag
+#       delegate_to: localhost
+#       amazon.aws.ec2_tag:
+#         region: "{{ placement['region'] }}"
+#         resource: "{{ instance_id }}"
+#         state: present
+#         tags:
+#           domain: ansible_local

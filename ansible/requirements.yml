@@ -1,0 +1,5 @@
+# from galaxy
+collections:
+  - name: microsoft.ad
+  - name: microsoft.mecm
+  - name: ansible.windows
