@@ -57,6 +57,7 @@ resource "proxmox_virtual_environment_vm" "example" {
   efi_disk {
     datastore_id = "nvme-thin" #var.datastore_id
     type         = "4m"
+    pre_enrolled_keys = true
   }
 
   tpm_state {
