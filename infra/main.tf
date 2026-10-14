@@ -80,7 +80,7 @@ resource "proxmox_virtual_environment_vm" "example" {
     interface    = "virtio0"
     iothread     = true
     discard      = "on"
-    size         = 50
+    size         = 100
   }
 
   network_device {
