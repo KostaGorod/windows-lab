@@ -1,17 +1,42 @@
+# Windows 
+This Lab is 1-Tier PKI, 2 Windows 2025 Servers,
+Demonstrating Installation and Setup precedure for NON-PRODUCTION READY Environment.
+
+This lab is performed in Proxmox Environment, 
+under VLAN 30, subnet 192.168.30.1/24.
+
+# DC01 - Windows Server 2025
+This Server will act as the Top Root Authority in the Hierarchy
+It will act as:
+1. DHCP server
+2. DNS server
+3. CA - Certificate Authority server
+
+---
+## VM installation
+1. downaload Windows Server 2025 ISO and prepare VM with the ISO - 
+2. Install Drivers, if required, attach CD with Drivers to see the disk.
+3. Setup Administrator user, save the password in secure password manager.
+4. Install Active-Directory Domain Services, DNS and DHCP
+>[!NOTE]
+> Do not install Certificate Services if you plan to do DC promotion, it'll block the promotion.
+6. Configure DNS - We're using be using FQDN and delegate the subdomain to our Windows DNS service - https://developers.cloudflare.com/dns/manage-dns-records/how-to/subdomains-outside-cloudflare/
+5. Promote to Domain Controller.
+7. Configure DHCP
 
 
-## Insallation of Windows Server 2025 Domain-Controller
-1. downalod image and prepare VM with the ISO
-2. setup Admin user, AD DS *!DO NOT INSTALL Certificate-Services before DC promotion!*
-3.
+# MECM Server - Installation
 
-
+```bash
 mise exec -- bash
 cd infra
 tofu init
 tofu plan
 tofu apply
+```
 
+Manually Add Another Disk for MECM and SQL server, it sohuld be seperate Disk from the OS. 
+give it 70-100GB storage.
 
 ## SSH via keys:
 1. Enable openSSH in server (and set network to private\trusted) 
@@ -43,14 +68,17 @@ tofu apply
 2. DONE
 
 #### Domain Preperation for MECM onboarding
+On DC01
 install AD DS extention for MECM (https://www.microsoft.com/en-us/evalcenter/download-microsoft-endpoint-configuration-manager)
+
 1. Unzip and run `BIN\X64\extadsch`
 2. confirm success by observing content of the log file produced by the script `C:\ExtADSch`
+
 #### Create Container for "System Management" and give full access for SCCM01
 1. Using `adsiedit.msc`, create new container "System Management"
 2. Under `Security` of the new container, append permissions for computer "SCCM01" to have full control of the container.
 3. Apply the new permission to `This object and all descendant objects` - this is so further customization could be done under the container.
-4. ~~replicate to all ther DCs `repadmin /syncall`~~ 
+4. ~~replicate to all other Domain Controllers `repadmin /syncall`~~  We have single DC
 5. DONE.
 
 
@@ -119,7 +147,7 @@ Actual SQL Query
 ### SMSS
 
 #### prerequesites
-run the check `prereqchk.exe under `MECM\SMSSETUP\BIN\X64`
+run the check `prereqchk.exe' under `MECM\SMSSETUP\BIN\X64`
 ``` shell
 cd C:\Users\svc_sql\Downloads\SMSSETUP\BIN\X64
 .\prereqchk.exe /Local
@@ -163,7 +191,7 @@ DONT put the installation folder to the OS drive.
 6. choose `install as standalone`
 7. change service broker port to `4022` (NOT the same as SQL server)
 8. Client Communication settings: choose `Configure the communication method on each site` and *Tick* `clients will use HTTPS when they have valid PKI..` 
-9. Choose connection method to `EHTTP` for the DP & MP, we will change to HTTPS once PKI is setup
+9. Choose connection method to `EHTTP` for the DP & MP, we will change to HTTPS later.
 10. Service Connection Point  Setup - Choose  `skip for now`, we dont need delivery via update services\internet
 
 Reporting Service is crucial part for MP and DP, itll be used to report if our installation of notepad++ was successful.
@@ -173,7 +201,7 @@ Reporting Service is crucial part for MP and DP, itll be used to report if our i
 
 #### Configuration Manager - Post Installation configuration
 currently only svc_sql have Permissions to operate the Configuration Manager,
-for now we will add CORP\Adminisatrator to have access too. later it could be locked down.
+we will add CORP\Adminisatrator to have access too. later it could be locked down.
 
 1. Launch Configuration Manager Console
 2. Choose our Lab, if it wasnt connected automatically.
@@ -199,3 +227,39 @@ On CA server DC01, add Web-server certificate Template
 
 On SCCM01, request new Personal Certificate (Local computer):
 1. Open mmc.exe -> File Add snap-in -> Certificate -> Local Comp -> Personal -> Certificates -> Request new Certificate -> Web Server
+
+#### Deploying MECM Agents across machines
+There's serval methods to install the agent Across machines and agents, 
+1. Manual installation.
+2. GPO deployment
+3. Client Push installation.
+
+For this lab we will utilize two approaches, Manual and Client Push. 
+##### SCCM01 - Client push installation
+1. Navigate Microsoft Configuration Manager -> Assets and Compliance -> Devices
+2. Right Click on `SCCM01` -> Install Client
+2. observe installation progress and log: `C:\Windows\ccmsetup\Logs\ccmsetup.log`, successful installation will end with "CcmSetup is exiting with return code 0"
+3. Confirm agent have all expected Actions access via Control Panel -> Configuration Manager -> Actions, The list composed of more than 2 Actions.
+
+
+##### DC01 - Manual Installation
+1. execute: `\\SCCM01\SMS_LAB\Client\ccmsetup.exe`
+2. observe installation progress and log: `C:\Windows\ccmsetup\Logs\ccmsetup.log`, successful installation will end with "CcmSetup is exiting with return code 0"
+3. Confirm agent have all expected Actions access via Control Panel -> Configuration Manager -> Actions, The list composed of more than 2 Actions.
+
+#### Adding Notepad++ and deploying it to DC01&SCCM01
+Before we can Configure our MECM to install softwares, we need a method to deliver and make the installation files accesible to our Machines.
+We will create a folder `Sources` and will share it with our domain systems.
+1. Create folder `Sources`, share it with `Administrator`.
+2. Copy notepad++.msi into this folder.
+3. confirm its accesible on DC01.
+
+* Add notepad++ Application to MECM
+1. Microsoft Configuration manager -> Software Library -> Application Management -> Applications
+2. Right Click -> Create Installation -> msi -> point to our network shared msi installer -> next till end. 
+
+* Deploy Application to our group (DC01 & SCCM01)
+1. NotePad++ -> Right Click -> Deploy -> Collection -> choose 'Device Collections' -> All desktop and servers -> next..
+2. Make the deployment Mandatory for auto installation 
+
+Observe Installation via the Deployments tab under Notepad++ application.
